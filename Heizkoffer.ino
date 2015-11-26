@@ -8,6 +8,19 @@
 #define heaterTemperaturePin 1
 #define lipoTemperaturePin 2
 
+enum States {WARMUP, COLD_LIPO, WARM_LIPO, VIN_CRIT};
+
+// function type
+typedef void (*FunctionCallback)();
+FunctionCallback transit_to_state[] = {&state_warmup, &state_cold_lipo, &state_warm_lipo, &state_vin_crit};
+
+const float referenceVoltage = 506.4;
+const float lipoTempMax = 35.0;
+const float lipoTempMin = 32.0;
+const float critVin = 10.9;
+
+const int heatingPower[3] = { 255, 223, 159 };
+
 float hystereseHeater = 0.5;
 float heaterTempMax = 40.0;
 
@@ -16,12 +29,7 @@ bool heating = false;
 bool cooling = true;
 bool lipoSaveMode = false;
 
-const float referenceVoltage = 506.4;
-const float lipoTempMax = 35.0;
-const float lipoTempMin = 32.0;
-const float critVin = 10.9;
-
-const int heatingPower[3] = { 255, 223, 159 };
+int state = WARMUP;
 
 //Initialize LCD
 LiquidCrystal lcd( 12, 11, 6, 4, 3, 2 );
@@ -43,59 +51,96 @@ void loop() {
   float LiPo = getBatteryVoltage();
 
   if (LiPo < critVin) {
-    if (!lipoSaveMode) lcd.clear();
-    lipoSaveMode = true;
-    analogWrite(pwmPin, 0);
-    lcd.setCursor(0, 2);
-    lcd.print("Vcc low");
-    lcd.setCursor(0, 3);
-    lcd.print("PANIC! LiPo burning!");
+    state = VIN_CRIT;
   }
 
-  if (!lipoSaveMode) {
-    int heaterPower = getHeaterPower(tempHeater);
-    if (tempLipo > lipoTempMax) heaterTempMax = 36.0;
-    if (tempLipo < lipoTempMin) heaterTempMax = 40.0;
-
-    if (tempHeater < heaterTempMax && !heating && !cooling) {
-      heating = true;
-      cooling = false;
-    }
-    if (tempHeater >= heaterTempMax) {
-      heating = false;
-      cooling = true;
-
-      if (warmUp) {
-        warmUp = false;
-        lcd.setCursor(0, 2);
-        lcd.print("      ");
-      }
-    }
-    if (cooling && tempHeater < (heaterTempMax - hystereseHeater)) {
-      cooling = false;
-    }
-
-    if (heating) {
-      lcd.setCursor(0, 3);
-      lcd.print("heating");
-    } else {
-      heaterPower = 0;
-      lcd.setCursor(0, 3);
-      lcd.print("       ");
-    }
-
-    if (warmUp) {
-      lcd.setCursor(0, 2);
-      lcd.print("warmup");
-    }
-    analogWrite(pwmPin, heaterPower);
-    printHeaterPower(heaterPower);
-  }
   printRuntime();
   printTemperature(tempHeater, 0);
   printTemperature(tempLipo, 1);
-  printLiPoVoltage(LiPo);
+  printBatteryVoltage(LiPo);
   printMaxTemp(heaterTempMax);
+
+  transit_to_state[state];
+}
+
+void state_warmup() {
+  heaterTempMax = 40.0;
+  float tempHeater = readTemperature(heaterTemperaturePin);
+  float tempLipo = readTemperature(lipoTemperaturePin);
+  int heaterPower = heatingPower[0];
+  if (tempHeater < heaterTempMax && !heating && !cooling) {
+    heating = true;
+    cooling = false;
+  }
+  if (tempHeater >= heaterTempMax) {
+    heating = false;
+    cooling = true;
+    state = COLD_LIPO;
+  }
+  if (cooling && tempHeater < (heaterTempMax - hystereseHeater)) {
+    cooling = false;
+  }
+
+  analogWrite(pwmPin, heaterPower);
+
+  lcd.setCursor(0, 2);
+  lcd.print("warmup");
+  lcd.setCursor(0, 3);
+  lcd.print("heating");
+  printHeaterPower(heaterPower);
+
+  transit_to_state[state];
+}
+
+void state_cold_lipo() {
+  heaterTempMax = 40.0;
+  float tempHeater = readTemperature(heaterTemperaturePin);
+  float tempLipo = readTemperature(lipoTemperaturePin);
+  int heaterPower = getHeaterPower(tempHeater, state);
+  analogWrite(pwmPin, heaterPower);
+
+  if (tempLipo > lipoTempMax) {
+    state = WARM_LIPO;
+  }
+
+  lcd.setCursor(0, 2);
+  lcd.print("lipo cold");
+  lcd.setCursor(0, 3);
+  lcd.print("heating");
+  printHeaterPower(heaterPower);
+
+  transit_to_state[state];
+}
+
+void state_warm_lipo() {
+  heaterTempMax = 36.0;
+  float tempHeater = readTemperature(heaterTemperaturePin);
+  float tempLipo = readTemperature(lipoTemperaturePin);
+  int heaterPower = getHeaterPower(tempHeater, state);
+  
+  analogWrite(pwmPin, heaterPower);
+
+  if (tempLipo < lipoTempMin) {
+    state = COLD_LIPO;
+  }
+
+  lcd.setCursor(0, 2);
+  lcd.print("         ");
+  lcd.setCursor(0, 3);
+  lcd.print("heating");
+  printHeaterPower(heaterPower);
+
+  transit_to_state[state];
+}
+
+void state_vin_crit() {
+  if (!lipoSaveMode) lcd.clear();
+  lipoSaveMode = true;
+  analogWrite(pwmPin, 0);
+  lcd.setCursor(0, 2);
+  lcd.print("Vcc low");
+  lcd.setCursor(0, 3);
+  lcd.print("PANIC! LiPo burning!");
 }
 
 void printRuntime() {
@@ -164,7 +209,7 @@ float getBatteryVoltage() {
   return vBat;
 }
 
-void printLiPoVoltage(float voltage) {
+void printBatteryVoltage(float voltage) {
   lcd.setCursor(14, 0);
   lcd.print(voltage);
   lcd.print("V");
@@ -179,13 +224,29 @@ void printMaxTemp(float temp) {
   lcd.print("C");
 }
 
-int getHeaterPower(float temperatur) {
-  if (warmUp) return heatingPower[0];
+int getHeaterPower(float temperatur, int state) {
+  heaterTempMax = (state == COLD_LIPO) ? 40.0 : 36.0;
 
-  float tempDelta = heaterTempMax - temperatur;
-  if (tempDelta > 6.0) return heatingPower[0];
-  else if (tempDelta > 1.5) return heatingPower[1];
-  else return heatingPower[2];
+  if (temperatur < heaterTempMax && !heating && !cooling) {
+    heating = true;
+    cooling = false;
+  }
+  if (temperatur >= heaterTempMax) {
+    heating = false;
+    cooling = true;
+  }
+  if (cooling && temperatur < (heaterTempMax - hystereseHeater)) {
+    cooling = false;
+  }
+
+  if (heating) {
+    float tempDelta = heaterTempMax - temperatur;
+    if        (tempDelta > 6.0) return heatingPower[0];
+    else if   (tempDelta > 1.5) return heatingPower[1];
+    else                        return heatingPower[2];
+  } else {
+    return 0;
+  }
 }
 
 void printHeaterPower(int heaterPower) {
