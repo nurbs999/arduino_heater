@@ -3,16 +3,22 @@
 This is a small arduino project for a heater-box. 
 The purpose of this project is to pre-warm lithium polymer batteries with high discharge rates (25C+). The advantage is that lipos have a way lower inner resistence (Ri)the warmer they get. The lower Ri is, the lower the voltage drop on high loads.
 
-**The shopping list:**
-1x arduino (I use a leonardo board)
-2x LM35 (thermal resistor)
-1x heating unit (I use a 36W heatingfoil)
-1x 20x4 LCD Display
-Resistores:
-1x 47k
-1x 22k
-1x 180
-1x 10k
+**Shopping list:**
+
+
+  - 1x arduino (I use a leonardo board)
+  - 2x LM35 (thermal resistor)
+  - 1x heating unit (I use a 36W heatingfoil)
+  - 1x 20x4 LCD Display
+
+
+Resistors:
+
+
+  - 1x 47k
+  - 1x 22k
+  - 1x 180
+  - 1x 10k
 
 
 This state mashine has four states:
