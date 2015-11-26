@@ -4,7 +4,7 @@
 
 #define runs 20
 #define runDelay 10
-#define pwmPin 5
+#define pwmPin 6
 #define voltagePin 0
 #define heaterTemperaturePin 1
 #define lipoTemperaturePin 2
@@ -14,6 +14,7 @@ enum States {WARMUP, COLD_LIPO, WARM_LIPO, VIN_CRIT};
 // function type
 typedef void (*FunctionCallback)();
 FunctionCallback callState[] = {&state_warmup, &state_cold_lipo, &state_warm_lipo, &state_vin_crit};
+FunctionCallback stateCallback;
 
 const float referenceVoltage = 506.4;
 const float lipoTempMax = 35.0;
@@ -31,10 +32,9 @@ bool cooling = true;
 bool lipoSaveMode = false;
 
 int state = WARMUP;
-FunctionCallback stateCallback;
 
 //Initialize LCD
-LiquidCrystal lcd( 12, 11, 6, 4, 3, 2 );
+LiquidCrystal lcd( 12, 11, 5, 4, 3, 2 );
 
 void setup() {
   //analogReference(INTERNAL);
@@ -62,11 +62,11 @@ void loop() {
   printBatteryVoltage(LiPo);
   printMaxTemp(heaterTempMax);
 
-  //callState[state];
   stateCallback = callState[state];
   stateCallback();
 }
 
+/** STATE FUNCTIONS **/
 void state_warmup() {
   heaterTempMax = 40.0;
   float tempHeater = readTemperature(heaterTemperaturePin);
@@ -92,8 +92,6 @@ void state_warmup() {
   lcd.setCursor(0, 3);
   lcd.print("heating");
   printHeaterPower(heaterPower);
-
-  //callState[state];
 }
 
 void state_cold_lipo() {
@@ -112,8 +110,6 @@ void state_cold_lipo() {
   lcd.setCursor(0, 3);
   lcd.print("heating");
   printHeaterPower(heaterPower);
-
-  //callState[state];
 }
 
 void state_warm_lipo() {
@@ -133,8 +129,6 @@ void state_warm_lipo() {
   lcd.setCursor(0, 3);
   lcd.print("heating");
   printHeaterPower(heaterPower);
-
-  //callState[state];
 }
 
 void state_vin_crit() {
@@ -147,19 +141,7 @@ void state_vin_crit() {
   lcd.print("PANIC! LiPo burning!");
 }
 
-void printRuntime() {
-  int total_minutes = millis()/60000;
-  int hours = (int)(total_minutes/60);
-  int minutes = total_minutes - hours*60;
-
-  lcd.setCursor(11, 1);
-  lcd.print("Time:");
-  lcd.print(hours);
-  if (minutes < 10) lcd.print(":0");
-  else lcd.print(":");
-  lcd.print(minutes);
-}
-
+/** GET VALUE FUNCTIONS **/
 float readTemperature(int temperaturePin) {
   // read multiple values and sort them to take the mode
   int sortedValues[runs];
@@ -195,37 +177,11 @@ float readTemperature(int temperaturePin) {
   return returnval*referenceVoltage/1023;
 }
 
-void printTemperature(float temp, int line) {
-  lcd.setCursor(0, line);
-  lcd.print("T");
-  lcd.print(line+1);
-  lcd.print(":");
-  lcd.print(temp);
-  lcd.setCursor(7, line);
-  lcd.print((char)223);
-  lcd.print("C");
-}
-
 float getBatteryVoltage() {
   float rawVal = analogRead(voltagePin);
   //4.16 RefV = 1024/4.16 = 246.15
   float vBat = rawVal/222*3;
   return vBat;
-}
-
-void printBatteryVoltage(float voltage) {
-  lcd.setCursor(14, 0);
-  lcd.print(voltage);
-  lcd.print("V");
-}
-
-void printMaxTemp(float temp) {
-  lcd.setCursor(11, 2);
-  lcd.print("Tmax:");
-  lcd.print((int)temp);
-  lcd.setCursor(18, 2);
-  lcd.print((char)223);
-  lcd.print("C");
 }
 
 int getHeaterPower(float temperatur, int state) {
@@ -251,6 +207,46 @@ int getHeaterPower(float temperatur, int state) {
   } else {
     return 0;
   }
+}
+
+/** PRINT FUNCTIONS **/
+void printRuntime() {
+  int total_minutes = millis()/60000;
+  int hours = (int)(total_minutes/60);
+  int minutes = total_minutes - hours*60;
+
+  lcd.setCursor(11, 1);
+  lcd.print("Time:");
+  lcd.print(hours);
+  if (minutes < 10) lcd.print(":0");
+  else lcd.print(":");
+  lcd.print(minutes);
+}
+
+void printTemperature(float temp, int line) {
+  lcd.setCursor(0, line);
+  lcd.print("T");
+  lcd.print(line+1);
+  lcd.print(":");
+  lcd.print(temp);
+  lcd.setCursor(7, line);
+  lcd.print((char)223);
+  lcd.print("C");
+}
+
+void printBatteryVoltage(float voltage) {
+  lcd.setCursor(14, 0);
+  lcd.print(voltage);
+  lcd.print("V");
+}
+
+void printMaxTemp(float temp) {
+  lcd.setCursor(11, 2);
+  lcd.print("Tmax:");
+  lcd.print((int)temp);
+  lcd.setCursor(18, 2);
+  lcd.print((char)223);
+  lcd.print("C");
 }
 
 void printHeaterPower(int heaterPower) {
