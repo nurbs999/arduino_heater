@@ -21,7 +21,7 @@ Resistors:
   - 1x 10k
 
 
-This state mashine has four states:
+**This state mashine has four states:**
 
   - Warmup
   - LiPo cold
