@@ -1,5 +1,6 @@
 #include <LiquidCrystal.h>
 #include <math.h>
+#include "printer.h"
 
 #define runs 20
 #define runDelay 10
@@ -12,7 +13,7 @@ enum States {WARMUP, COLD_LIPO, WARM_LIPO, VIN_CRIT};
 
 // function type
 typedef void (*FunctionCallback)();
-FunctionCallback transit_to_state[] = {&state_warmup, &state_cold_lipo, &state_warm_lipo, &state_vin_crit};
+FunctionCallback callState[] = {&state_warmup, &state_cold_lipo, &state_warm_lipo, &state_vin_crit};
 
 const float referenceVoltage = 506.4;
 const float lipoTempMax = 35.0;
@@ -30,6 +31,7 @@ bool cooling = true;
 bool lipoSaveMode = false;
 
 int state = WARMUP;
+FunctionCallback stateCallback;
 
 //Initialize LCD
 LiquidCrystal lcd( 12, 11, 6, 4, 3, 2 );
@@ -60,7 +62,9 @@ void loop() {
   printBatteryVoltage(LiPo);
   printMaxTemp(heaterTempMax);
 
-  transit_to_state[state];
+  //callState[state];
+  stateCallback = callState[state];
+  stateCallback();
 }
 
 void state_warmup() {
@@ -89,7 +93,7 @@ void state_warmup() {
   lcd.print("heating");
   printHeaterPower(heaterPower);
 
-  transit_to_state[state];
+  //callState[state];
 }
 
 void state_cold_lipo() {
@@ -109,7 +113,7 @@ void state_cold_lipo() {
   lcd.print("heating");
   printHeaterPower(heaterPower);
 
-  transit_to_state[state];
+  //callState[state];
 }
 
 void state_warm_lipo() {
@@ -130,7 +134,7 @@ void state_warm_lipo() {
   lcd.print("heating");
   printHeaterPower(heaterPower);
 
-  transit_to_state[state];
+  //callState[state];
 }
 
 void state_vin_crit() {
